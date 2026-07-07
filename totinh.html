@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Giang ơi...</title>
+    <style>
+      :root{
+        --void:#0a0308;
+        --rain-bright:#ff2f7e;
+        --rain-mid:#e0397a;
+        --rain-dim:#7a1240;
+        --ink:#ffe3ef;
+        --petal:#ff5fa8;
+        --petal-soft:#ffb3d4;
+        --yes-a:#ff3d81;
+        --yes-b:#ff8fc0;
+      }
+      *{margin:0;padding:0;box-sizing:border-box;}
+      html,body{
+        width:100%;height:100%;overflow:hidden;
+        background:var(--void);
+        font-family:'Poppins',system-ui,-apple-system,sans-serif;
+        -webkit-tap-highlight-color:transparent;
+      }
+      @font-face{
+        font-family:'Great Vibes';
+        src:local('Great Vibes');
+      }
+      #matrix{position:fixed;inset:0;display:block;}
+
+      #stage{
+        position:fixed;inset:0;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        pointer-events:none;
+      }
+
+      #caption{
+        position:fixed;
+        bottom:6vh;left:0;right:0;
+        text-align:center;
+        color:var(--petal-soft);
+        letter-spacing:0.35em;
+        font-size:11px;
+        text-transform:uppercase;
+        opacity:0;
+        transition:opacity 1.2s ease;
+        font-weight:300;
+      }
+
+      #question{
+        position:fixed;
+        left:50%;top:56%;
+        transform:translate(-50%,-50%);
+        text-align:center;
+        width:90vw;
+        max-width:520px;
+        opacity:0;
+        transition:opacity 1.4s ease;
+        pointer-events:none;
+      }
+      #question .to{
+        font-family:'Brush Script MT','Great Vibes',cursive;
+        font-size:clamp(28px,7vw,42px);
+        color:var(--ink);
+        text-shadow:0 0 18px rgba(255,95,168,0.6);
+      }
+      #question .ask{
+        margin-top:14px;
+        font-size:clamp(17px,4.4vw,24px);
+        line-height:1.5;
+        color:#fff;
+        font-weight:500;
+        text-shadow:0 0 22px rgba(255,47,126,0.55);
+      }
+
+      #actions{
+        position:fixed;
+        left:0;right:0;bottom:10vh;
+        display:flex;justify-content:center;gap:22px;
+        opacity:0;
+        transition:opacity 1s ease;
+        z-index:5;
+      }
+      .btn{
+        position:relative;
+        border:none;
+        border-radius:999px;
+        font-size:16px;
+        font-weight:600;
+        padding:14px 30px;
+        cursor:pointer;
+        font-family:inherit;
+        transition:transform .18s ease, box-shadow .18s ease;
+        -webkit-tap-highlight-color:transparent;
+      }
+      #yesBtn{
+        background:linear-gradient(135deg,var(--yes-a),var(--yes-b));
+        color:#2b0016;
+        box-shadow:0 8px 30px rgba(255,61,129,.45);
+        z-index:6;
+      }
+      #noBtn{
+        background:transparent;
+        color:var(--petal-soft);
+        border:1.5px solid rgba(255,179,212,.55);
+        position:fixed;
+        z-index:7;
+      }
+      #noBtn.roaming{
+        transition:top .32s cubic-bezier(.34,1.56,.64,1), left .32s cubic-bezier(.34,1.56,.64,1);
+      }
+
+      #finale{
+        position:fixed;inset:0;
+        display:flex;align-items:center;justify-content:center;
+        background:radial-gradient(circle at 50% 40%, #2a0016 0%, #0a0308 70%);
+        opacity:0;
+        pointer-events:none;
+        transition:opacity .8s ease;
+        z-index:20;
+        flex-direction:column;
+        text-align:center;
+        padding:24px;
+      }
+      #finale.show{opacity:1;pointer-events:auto;}
+      #finale h1{
+        font-family:'Brush Script MT','Great Vibes',cursive;
+        font-size:clamp(38px,10vw,64px);
+        color:var(--ink);
+        text-shadow:0 0 30px rgba(255,95,168,.7);
+      }
+      #finale p{
+        margin-top:16px;
+        color:var(--petal-soft);
+        font-size:15px;
+        letter-spacing:.06em;
+      }
+      #confetti{position:fixed;inset:0;z-index:19;pointer-events:none;}
+
+      #skip{
+        position:fixed;top:16px;right:16px;
+        color:rgba(255,179,212,.5);
+        font-size:11px;
+        letter-spacing:.15em;
+        text-transform:uppercase;
+        background:transparent;border:1px solid rgba(255,179,212,.3);
+        border-radius:999px;padding:6px 12px;
+        z-index:30;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="matrix"></canvas>
+    <canvas id="confetti"></canvas>
+
+    <div id="caption">Đang giải mã một điều bí mật</div>
+
+    <div id="question">
+      <div class="to">Giang ơi,</div>
+      <div class="ask">em có đồng ý làm<br />bạn gái của anh không?</div>
+    </div>
+
+    <div id="actions">
+      <button class="btn" id="yesBtn">Có 💗</button>
+    </div>
+    <button class="btn" id="noBtn">Không</button>
+
+
+    <div id="finale">
+      <h1>Yayyy! 🎉</h1>
+      <p>Cảm ơn em đã đến bên anh, yêu em! 💗</p>
+    </div>
+
+    <script>
+      /* ---------- helpers ---------- */
+      const $ = (id)=>document.getElementById(id);
+      const matrixCanvas = $('matrix');
+      const mctx = matrixCanvas.getContext('2d');
+      let W,H,DPR;
+      function resize(){
+        DPR = Math.min(window.devicePixelRatio||1, 2);
+        W = window.innerWidth; H = window.innerHeight;
+        matrixCanvas.width = W*DPR; matrixCanvas.height = H*DPR;
+        matrixCanvas.style.width = W+'px'; matrixCanvas.style.height = H+'px';
+        mctx.setTransform(DPR,0,0,DPR,0,0);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      /* ---------- glyph pool ---------- */
+      const GLYPHS = "01ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄハヒフヘホ愛心❤".split("");
+      function randGlyph(){ return GLYPHS[(Math.random()*GLYPHS.length)|0]; }
+
+      /* ---------- phase control ---------- */
+      let phase = 'rain'; // rain -> converge -> settled
+      let startTime = performance.now();
+      const RAIN_MS = 2600;
+      const CONVERGE_MS = 2000;
+
+      /* ---------- rain columns ---------- */
+      const fontSize = 13;
+      let columns, drops, colGlyph;
+      let drops2;
+      function setupColumns(){
+        columns = Math.ceil(W/fontSize);
+        drops = new Array(columns).fill(0).map(()=> Math.random()*-40);
+        drops2 = new Array(columns).fill(0).map(()=> Math.random()*-80 - 20);
+        colGlyph = new Array(columns).fill(0).map(randGlyph);
+      }
+      setupColumns();
+      window.addEventListener('resize', setupColumns);
+
+      /* ---------- target text particles ---------- */
+      let particles = [];
+      function samplePointsFromText(lines, opts){
+        const off = document.createElement('canvas');
+        off.width = W; off.height = H;
+        const octx = off.getContext('2d');
+        octx.clearRect(0,0,W,H);
+        octx.fillStyle = '#fff';
+        octx.textAlign = 'center';
+        octx.textBaseline = 'middle';
+        const pts = [];
+        lines.forEach(line=>{
+          octx.font = line.weight+' '+line.size+'px '+line.font;
+          octx.fillText(line.text, W/2, line.y);
+        });
+        const img = octx.getImageData(0,0,W,H).data;
+        const step = opts.step || 4;
+        for(let y=0;y<H;y+=step){
+          for(let x=0;x<W;x+=step){
+            const idx = (y*W+x)*4+3;
+            if(img[idx] > 120){
+              pts.push({x,y});
+            }
+          }
+        }
+        return pts;
+      }
+
+      function heartPoints(cx,cy,scale,count){
+        const pts=[];
+        for(let i=0;i<count;i++){
+          const t = Math.random()*Math.PI*2;
+          const r = Math.sqrt(Math.random());
+          let x = 16*Math.pow(Math.sin(t),3);
+          let y = -(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+          x *= r*0.9+0.1; y *= r*0.9+0.1;
+          pts.push({x:cx+x*scale, y:cy+y*scale});
+        }
+        return pts;
+      }
+
+      function buildTargets(){
+        const isSmall = W < 480;
+        // Only the heart shape is formed from particles now — the confession text
+        // itself is shown by the clean DOM layer (#question), so no stray glyphs
+        // overlap the words.
+        const heartCount = isSmall ? 260 : 380;
+        const hPts = heartPoints(W/2, H*0.30, isSmall? 6.5:9, heartCount);
+
+        particles = hPts.map(p=>({
+          x: Math.random()*W,
+          y: -Math.random()*H,
+          tx: p.x, ty: p.y,
+          vx:0, vy:0,
+          glyph: randGlyph(),
+          isHeart: true,
+          size: 2.4+Math.random()*1.6,
+          flicker: Math.random()*Math.PI*2
+        }));
+      }
+
+      /* ---------- animation loop ---------- */
+      function drawRainFrame(alphaFade){
+        mctx.fillStyle = 'rgba(10,3,8,'+(0.10)+')';
+        mctx.fillRect(0,0,W,H);
+        mctx.font = fontSize+'px monospace';
+        for(let i=0;i<columns;i++){
+          const x = i*fontSize;
+
+          const y = drops[i]*fontSize;
+          const g = (Math.random()<0.03) ? randGlyph() : colGlyph[i];
+          colGlyph[i] = g;
+          mctx.fillStyle = Math.random()<0.08 ? 'rgba(255,225,239,'+alphaFade+')' : 'rgba(255,47,126,'+ (0.8*alphaFade) +')';
+          mctx.fillText(g, x, y);
+          if(y > H && Math.random() > 0.975){ drops[i] = 0; }
+          drops[i] += 0.55 + Math.random()*0.5;
+
+          const y2 = drops2[i]*fontSize;
+          const g2 = randGlyph();
+          mctx.fillStyle = Math.random()<0.06 ? 'rgba(255,225,239,'+(0.85*alphaFade)+')' : 'rgba(255,95,168,'+ (0.6*alphaFade) +')';
+          mctx.fillText(g2, x, y2);
+          if(y2 > H && Math.random() > 0.97){ drops2[i] = -Math.random()*20; }
+          drops2[i] += 0.4 + Math.random()*0.45;
+        }
+      }
+
+      function drawParticles(progress){
+        mctx.fillStyle = 'rgba(10,3,8,0.22)';
+        mctx.fillRect(0,0,W,H);
+        const ease = 1 - Math.pow(1-progress, 3);
+        particles.forEach(p=>{
+          p.x += (p.tx - p.x) * (0.06 + ease*0.05);
+          p.y += (p.ty - p.y) * (0.06 + ease*0.05);
+          p.flicker += 0.08;
+          const flick = 0.65 + Math.sin(p.flicker)*0.35;
+          if(p.isHeart){
+            mctx.fillStyle = 'rgba(255,95,168,'+(0.55*flick)+')';
+            mctx.beginPath();
+            mctx.arc(p.x,p.y,p.size*0.9,0,Math.PI*2);
+            mctx.fill();
+          } else {
+            mctx.font = '13px monospace';
+            mctx.fillStyle = 'rgba(255,227,239,'+(0.85*flick)+')';
+            mctx.fillText(p.glyph, p.x, p.y);
+          }
+        });
+      }
+
+      function drawSettled(){
+        mctx.fillStyle = 'rgba(10,3,8,0.5)';
+        mctx.fillRect(0,0,W,H);
+        particles.forEach(p=>{
+          p.x += (Math.random()-0.5)*0.3;
+          p.y += (Math.random()-0.5)*0.3;
+          p.flicker += 0.06;
+          const flick = 0.6 + Math.sin(p.flicker)*0.4;
+          if(p.isHeart){
+            mctx.fillStyle = 'rgba(255,95,168,'+(0.5*flick)+')';
+            mctx.beginPath();
+            mctx.arc(p.x,p.y,2.2,0,Math.PI*2);
+            mctx.fill();
+          } else {
+            mctx.font = '13px monospace';
+            mctx.fillStyle = 'rgba(255,227,239,'+(0.8*flick)+')';
+            mctx.fillText(p.glyph, p.x, p.y);
+          }
+        });
+      }
+
+      let convergeStart = null;
+      function loop(now){
+        const elapsed = now - startTime;
+
+        if(phase === 'rain'){
+          drawRainFrame(1);
+          if(elapsed > RAIN_MS){
+            buildTargets();
+            phase = 'converge';
+            convergeStart = now;
+            $('caption').style.opacity = '0';
+          }
+        } else if(phase === 'converge'){
+          const cElapsed = now - convergeStart;
+          const progress = Math.min(cElapsed/CONVERGE_MS, 1);
+          drawParticles(progress);
+          if(progress >= 1){
+            phase = 'settled';
+            revealQuestion();
+          }
+        } else {
+          drawSettled();
+        }
+        requestAnimationFrame(loop);
+      }
+
+      function revealQuestion(){
+        $('question').style.opacity = '1';
+        setTimeout(()=>{ $('actions').style.opacity='1'; positionNo(true); }, 500);
+      }
+
+      /* fade in caption shortly after load */
+      setTimeout(()=>{ $('caption').style.opacity = '1'; }, 400);
+
+      requestAnimationFrame(loop);
+
+      /* ---------- Không button dodge logic ---------- */
+      const noBtn = $('noBtn');
+      const yesBtn = $('yesBtn');
+      let noAttempts = 0;
+
+      function positionNo(first){
+        const pad = 24;
+        const bw = noBtn.offsetWidth || 110;
+        const bh = noBtn.offsetHeight || 48;
+        const maxX = W - bw - pad;
+        const maxY = H - bh - pad;
+        let x,y;
+        if(first){
+          x = W/2 + 90;
+          y = H*0.9 - bh/2;
+          if(x>maxX) x = maxX;
+        } else {
+          x = pad + Math.random()*(maxX-pad);
+          y = H*0.55 + Math.random()*(maxY - H*0.55);
+        }
+        noBtn.classList.add('roaming');
+        noBtn.style.left = Math.max(pad,x)+'px';
+        noBtn.style.top = Math.max(pad,y)+'px';
+      }
+
+      function dodge(){
+        noAttempts++;
+        positionNo(false);
+        const scale = Math.min(1 + noAttempts*0.12, 2.1);
+        yesBtn.style.transform = 'scale('+scale+')';
+      }
+
+      noBtn.addEventListener('pointerenter', dodge);
+      noBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); dodge(); }, {passive:false});
+      noBtn.addEventListener('click', (e)=>{ e.preventDefault(); dodge(); });
+
+      yesBtn.addEventListener('click', ()=>{
+        $('finale').classList.add('show');
+        launchConfetti();
+      });
+
+      /* ---------- confetti ---------- */
+      const cvs = $('confetti');
+      const cctx = cvs.getContext('2d');
+      let confettiPieces = [];
+      function sizeConfetti(){ cvs.width = W; cvs.height = H; }
+      sizeConfetti();
+      window.addEventListener('resize', sizeConfetti);
+
+      function launchConfetti(){
+        const colors = ['#ff3d81','#ff8fc0','#ffe3ef','#ff5fa8'];
+        for(let i=0;i<140;i++){
+          confettiPieces.push({
+            x: Math.random()*W,
+            y: -20 - Math.random()*H*0.5,
+            r: 3+Math.random()*5,
+            vy: 2+Math.random()*3,
+            vx: (Math.random()-0.5)*2,
+            color: colors[(Math.random()*colors.length)|0],
+            heart: Math.random()<0.35,
+            rot: Math.random()*Math.PI,
+            vr: (Math.random()-0.5)*0.2
+          });
+        }
+        if(!confettiRunning){ confettiRunning = true; requestAnimationFrame(confettiLoop); }
+      }
+      let confettiRunning = false;
+      function drawHeart(ctx,x,y,size,rot,color){
+        ctx.save();
+        ctx.translate(x,y); ctx.rotate(rot);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(0,size*0.3);
+        ctx.bezierCurveTo(size,-size*0.6, size*1.4,size*0.5, 0,size*1.3);
+        ctx.bezierCurveTo(-size*1.4,size*0.5, -size,-size*0.6, 0,size*0.3);
+        ctx.fill();
+        ctx.restore();
+      }
+      function confettiLoop(){
+        cctx.clearRect(0,0,W,H);
+        confettiPieces.forEach(p=>{
+          p.y += p.vy; p.x += p.vx; p.rot += p.vr;
+          if(p.heart){ drawHeart(cctx,p.x,p.y,p.r,p.rot,p.color); }
+          else {
+            cctx.save();
+            cctx.translate(p.x,p.y); cctx.rotate(p.rot);
+            cctx.fillStyle = p.color;
+            cctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);
+            cctx.restore();
+          }
+        });
+        confettiPieces = confettiPieces.filter(p=>p.y < H+30);
+        if(confettiPieces.length>0 || confettiRunning){
+          if(confettiPieces.length===0){ confettiRunning=false; return; }
+          requestAnimationFrame(confettiLoop);
+        }
+      }
+
+      /* ---------- skip button ---------- */
+      $('skip').addEventListener('click', ()=>{
+        if(phase==='rain'){
+          startTime = performance.now() - RAIN_MS - 1;
+        }
+      });
+    </script>
+  </body>
+</html>
